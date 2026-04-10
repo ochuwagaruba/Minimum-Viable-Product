@@ -1,0 +1,102 @@
+---
+title: "Minimum Viable Product: Princeton Gerrymandering Project"
+author: "Ochuwa Garuba"
+date: "`r format(Sys.time(), 'Compiled %X on %A, %B %d, %Y')`"
+output:
+  pdf_document:
+    latex_engine: xelatex
+  html_document:
+    df_print: paged
+header-includes:
+- \usepackage{fvextra}
+- \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
+---
+# Data Set Up
+
+```{r set up, echo = TRUE, eval = TRUE, comment = NA, warning = FALSE, message = FALSE}
+# Load packages
+library(ggplot2)
+library(tidyverse)
+library(GGally)
+
+# Set the seed to create reproducible code
+set.seed(123)
+
+# Load data
+elections <- read.csv('/Users/ochuwagaruba/Desktop/Vanderbilt University/Spring 2026/HIST 1354/Data/congressional_election_results_post1948.csv')
+```
+
+# Data Wrangling
+
+```{r data wrangling, echo = TRUE, eval = TRUE, comment = NA, warning = FALSE, message = FALSE}
+# Clean data
+southern_states <- c(
+  "AL", "GA", "LA", "MS",
+  "SC", "TX", "VA",
+  "NC", "FL", "TN"
+)
+
+# Filter the data
+elections_filtered <- elections[elections$State %in% southern_states, ]
+```
+
+# Data Inspection
+
+```{r data inspection, echo = TRUE, eval = TRUE, comment = NA, warning = FALSE, message = FALSE}
+# Check data
+str(elections_filtered)
+head(elections_filtered)
+summary(elections_filtered)
+```
+
+# Predictive Modeling
+
+```{r modeling, echo = TRUE, eval = TRUE, comment = NA, warning = FALSE, message = FALSE}
+# Prep categorical data for the linear regression model
+model_data <- elections_filtered %>%
+  mutate(
+    State = as.factor(State),
+    Incumbent_Party = as.factor(ifelse(Incumbent == 1, "Democrat", "Republican"))
+  )
+
+# Run the linear regression
+election_model <- lm(D.Voteshare ~ Year + State + Incumbent_Party, data = model_data)
+
+# View results
+summary(election_model)
+```
+
+# Line Graph 1: Historical Trends in the South
+
+```{r line graph 1, echo = TRUE, eval = TRUE, comment = NA, warning = FALSE, message = FALSE}
+ggplot(elections_filtered, aes(x = Year, y = D.Voteshare, color = State)) +
+  geom_smooth(se = FALSE, size = 0.8) +
+  geom_vline(xintercept = c(1965), linetype = "dotted", alpha = 0.5) +
+  facet_wrap(~State) +
+  labs(
+    title = "Southern Realignment: State-by-State Comparison",
+    subtitle = "Dotted lines indicates 1965, which is when the Voting Rights Act passed"
+  ) +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+# Table: Calculate average vote share by state and decade
+
+```{r table, echo = TRUE, eval = TRUE, comment = NA, warning = FALSE, message = FALSE}
+decade_summary <- elections_filtered %>%
+  mutate(Decade = floor(Year / 10) * 10) %>%
+  group_by(State, Decade) %>%
+  summarise(Avg_Voteshare = mean(D.Voteshare, na.rm = TRUE), .groups = 'drop') %>%
+  pivot_wider(names_from = Decade, values_from = Avg_Voteshare)
+decade_table_clean <- decade_summary %>%
+  mutate(across(where(is.numeric), ~ paste0(round(.x * 100, 1), "%")))
+knitr::kable(decade_table_clean, caption = "Average Democratic Vote Share by State and Year")
+```
+
+# Reflection
+
+The biggest technical hurdle was narrowing down which variables to include in my linear regression model. While my dataset from the Princeton Gerrymandering Project contains several columns, I had to be intentional about which factors would actually predict a relevant historical outcome. I initially considered including raw vote totals or the specific district numbers, but I  ralized that these would complicate the model without adding real value to the overarching narrative. Districts are redrawn every ten years, making District 1 a moving target geographically. Vote totals are also the raw ingredients of the vote share itself. Deciding to focus on Year, State, and Incumbency required a deliberate shift from simply using all available data to selecting variables that represent the actual engines of Southern political change: time, location, and political power. Based on this preliminary engine run, the data strongly supports my initial hypothesis regarding the realignment of the American South. The model shows a clear, statistically significant decline in Democratic vote share over time, with an average annual drop of about 28 percent.
+
+The most striking finding was the massive influence of incumbency. The model indicates that a Republican incumbent reduces the expected Democratic vote share by roughly 47 percent, which highlights how the party in power can anchor a district's political outcome Furthermore, the state-by-state breakdown reveals that while the entire South moved away from the Democratic Party, the starting points and slopes differed. For instance, Tennessee showed much more early-stage competition in the 1940s and 50s than states in the Deep South like Mississippi. This suggests that there are nuanced regional tensions between federal oversight and local political shifts.
